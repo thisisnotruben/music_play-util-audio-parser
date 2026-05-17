@@ -1,6 +1,7 @@
 import os
 import mutagen
 import csv
+import json
 from dotenv import load_dotenv 
 import tarfile
 from mutagen.easyid3 import EasyID3
@@ -13,9 +14,11 @@ class Main:
     # extract metadata to csv tables
     # extract file img cover to tarfile
 
-    def __init__(self, scan_dir: str, dest_csv_path: str, dest_tar_path: str):
+    def __init__(self, scan_dir: str, dest_song_csv_path: str, dest_artist_csv_path: str, dest_album_json_path: str, dest_tar_path: str):
         self.scan_dir = scan_dir
-        self.dest_csv_path = dest_csv_path
+        self.dest_song_csv_path = dest_song_csv_path
+        self.dest_artist_csv_path = dest_artist_csv_path
+        self.dest_album_json_path = dest_album_json_path
         self.dest_tar_path = dest_tar_path
         self.csv_headers = ['name', 'artistName', 'album', 'genre', 'length', 'audioPath', 'coverPath']
 
@@ -30,24 +33,48 @@ class Main:
                 full_path = os.path.join(dirpath, file_name)
                 audio_metadata = self.get_metadata(full_path)
 
-                all_empty = True
-                for m in audio_metadata:
-                    if m != '':
-                        all_empty = False
-
-                missing_tags = audio_metadata[0] == '' or audio_metadata[1] == ''
-
-                if not all_empty and not missing_tags:
+                if len(audio_metadata[self.csv_headers.index('name')]) > 0 \
+                and len(audio_metadata[self.csv_headers.index('artistName')]) > 0 \
+                and len(audio_metadata[self.csv_headers.index('album')]) > 0:
                     csv_file_data.append(audio_metadata)
 
-        with open(self.dest_csv_path, 'w') as csv_file:
+        with open(self.dest_song_csv_path, 'w') as csv_file:
             csv_writer = csv.writer(csv_file)
             csv_writer.writerows(csv_file_data)
+
+        header = 'artistName'
+        artist_csv_data = set()
+        for i in range(1, len(csv_file_data)):
+            artist_csv_data.add(csv_file_data[i][self.csv_headers.index(header)])
+
+        artist_csv_data = sorted(list(artist_csv_data))
+        artist_csv_data.insert(0, header)
+        artist_csv_data = [[v] for v in artist_csv_data]
+
+        with open(self.dest_artist_csv_path, 'w') as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerows(artist_csv_data)
+
+        album_data = {}
+        for i in range(1, len(csv_file_data)):
+            album_name = csv_file_data[i][self.csv_headers.index('album')]
+            song_name = csv_file_data[i][self.csv_headers.index('name')]
+
+            if album_name in album_data.keys():
+                album_data[album_name]['songs'].append(song_name)
+            else:
+                album_data[album_name] = {
+                    'artistName': csv_file_data[i][self.csv_headers.index('artistName')],
+                    'songs': [song_name],
+                }
+        album_data = {'values': album_data}
+
+        with open(self.dest_album_json_path, 'w',) as f:
+            f.write(json.dumps(album_data, indent='\t'))
 
         with tarfile.open(self.dest_tar_path, 'w:tar') as tar_file:
             for cover_path in cover_path_files:
                 tar_file.add(cover_path)
-
 
     def get_metadata(self, file_path: str) -> list:
         metadata = ['' for _ in range(len(self.csv_headers))]
@@ -61,7 +88,9 @@ class Main:
                     case 'title':
                         metadata[self.csv_headers.index('name')] = audio[key][0]
                     case 'artist' | 'albumartist':
-                        metadata[self.csv_headers.index('artistName')] = audio[key][0]
+                        index = self.csv_headers.index('artistName')
+                        if len(metadata[index]) == 0:
+                            metadata[index] = audio[key][0]
                     case 'album' | 'genre':
                         metadata[self.csv_headers.index(key)] = audio[key][0]
                     case 'length':
@@ -78,6 +107,7 @@ class Main:
 
 if __name__ == "__main__":
     load_dotenv()
-    args = [os.getenv('SCAN_DIR'), os.getenv('DEST_CSV_PATH'), os.getenv('DEST_TAR_PATH')]
+    args_labels = ['SCAN_DIR', 'DEST_SONG_CSV_PATH', 'DEST_ARTIST_CSV_PATH', 'DEST_ALBUM_JSON_PATH', 'DEST_TAR_PATH']
+    args = [os.getenv(label) for label in args_labels]
 
     Main(*args).run()
