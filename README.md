@@ -1,8 +1,6 @@
 # README
 
-## Run
-
-### ENV vars
+## env vars
 ```bash
 touch .env
 cat > .env << EOF
@@ -12,6 +10,7 @@ DEST_DATA_PATH={PATH-TO-STORE-JSON-FILE}.json
 EOF
 ```
 
+## Run
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
