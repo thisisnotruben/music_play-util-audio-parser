@@ -1,15 +1,25 @@
 # README
 
-To create `.venv`:
+## Run
+
+### ENV vars
 ```bash
-python3 -m venv .venv
+touch .env
+cat > .env << EOF
+SCAN_DIR={PATH-TO-MUSICD-DIR}
+DEST_TAR_PATH=./data.tar
+DEST_DATA_PATH={PATH-TO-STORE-JSON-FILE}.json
+EOF
 ```
 
-to run env:
 ```bash
+python3 -m venv .venv
 source .venv/bin/activate
+pip install -r requirements.txt
 ```
+
+## Personal notes
+### Freeze dep
 ```bash
 pip freeze > requirements.txt
 ```
-
