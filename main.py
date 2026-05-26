@@ -84,7 +84,7 @@ class Main:
         logging.info('Writing data to tar file.')
         with tarfile.open(self.dest_tar_path, 'w:tar') as tar_file:
             for cover_path in cover_path_files.values():
-                tar_file.add(cover_path)
+                tar_file.add(cover_path, os.path.join(*list(Path(cover_path).parts[4:])))
 
     def get_metadata(self, file_path: str) -> dict:
         data = {
