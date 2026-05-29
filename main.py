@@ -50,12 +50,10 @@ class Main:
                         cover_art_path = self.get_image(full_path)
 
                     if os.path.isfile(cover_art_path):
-                        cover_path_files[file_path_key] = cover_art_path
+                        cover_path_files[file_path_key] = \
+                            os.path.join(*list(Path(cover_art_path).parts[4:])).replace(' ', '-')
                     else:
                         cover_art_path = ''
-
-                if os.path.isfile(cover_art_path):
-                    cover_art_path = os.path.join(*list(Path(cover_art_path).parts[4:]))
 
                 if artist_name in data['data'].keys():
 
