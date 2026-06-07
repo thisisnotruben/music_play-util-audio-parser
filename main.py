@@ -7,19 +7,31 @@ import tarfile
 from mutagen.easyid3 import EasyID3
 from pathlib import Path
 import subprocess
-import sys
+# https://deepwiki.com/resemble-ai/chatterbox/2-getting-started
+import torchaudio as ta
+from chatterbox.tts import ChatterboxTTS
 
 
 class Main:
 
-    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s [%(levelname)s]  %(message)s',
+                        handlers=[
+                            logging.FileHandler('.log'),
+                            logging.StreamHandler(),
+                        ])
 
-    def __init__(self, scan_dir: str, dest_data_path: str, dest_tar_path: str):
+    def __init__(self, scan_dir: str, dest_data_path: str, dest_tar_path: str, dest_tar_audio_path: str):
         self.scan_dir = scan_dir
         self.dest_data_path = dest_data_path
         self.dest_tar_path = dest_tar_path
+        self.dest_tar_audio_path = dest_tar_audio_path
 
+    def format_upload_path(self, s: str) -> str:
+        return os.path.join(*list(Path(s).parts[4:])).replace(' ', '-')
+    
     def run(self):
+
         data = {'data': {}}
         cover_path_files = {}
 
@@ -49,11 +61,10 @@ class Main:
                     if len(cover_art_path) == 0:
                         cover_art_path = self.get_image(full_path)
 
+                    upload_path = ''
                     if os.path.isfile(cover_art_path):
-                        cover_path_files[file_path_key] = \
-                            os.path.join(*list(Path(cover_art_path).parts[4:])).replace(' ', '-')
-                    else:
-                        cover_art_path = ''
+                        cover_path_files[file_path_key] = cover_art_path
+                        upload_path = self.format_upload_path(cover_art_path)
 
                 if artist_name in data['data'].keys():
 
@@ -62,7 +73,7 @@ class Main:
                     else:
                         data['data'][artist_name]['albums'].append({
                             'name': album_name,
-                            'coverPath': cover_art_path,
+                            'coverPath': upload_path,
                             'songs': [audio_metadata]
                         })
 
@@ -70,7 +81,7 @@ class Main:
                     data['data'][artist_name] = {
                         'albums': [{
                             'name': album_name,
-                            'coverPath': cover_art_path,
+                            'coverPath': upload_path,
                             'songs': [audio_metadata],
                         }]
                     }
@@ -81,8 +92,56 @@ class Main:
 
         logging.info('Writing data to tar file.')
         with tarfile.open(self.dest_tar_path, 'w:tar') as tar_file:
-            for cover_path in cover_path_files.values():
-                tar_file.add(cover_path, os.path.join(*list(Path(cover_path).parts[4:])))
+            for file_path in cover_path_files.values():
+                tar_file.add(file_path, self.format_upload_path(file_path))
+
+    def getAudio(self):
+        data: dict = {}
+        with open(self.dest_data_path) as f:
+            data = json.load(f)
+    
+        logging.info("Generating audio.")
+        model = ChatterboxTTS.from_pretrained(device='cuda')
+
+        for artist_name in data['data']:
+            for album_data in data['data'][artist_name]['albums']:
+                for song in album_data['songs']:
+
+                    file_path = os.path.splitext(song['audioPath'])[0] + '.wav'
+                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                    if os.path.isfile(file_path):
+                        continue
+
+                    text =  artist_name + ' ' + album_data['name'] + ' ' + song['name']
+                    logging.info('Generating audio for: [%s].' % text)
+                    wav = model.generate(text)
+
+                    logging.info('Saving audio to: [%s].' % file_path)
+                    ta.save(file_path, wav, model.sr)
+
+        generated_files = []
+        for (dirpath, _, filenames) in os.walk(self.scan_dir):
+            for file_name in filenames:
+
+                file_path = os.path.join(dirpath, file_name)
+                coverted_file_path = os.path.splitext(file_path)[0] + '.ogg'
+
+                if os.path.isfile(coverted_file_path):
+                    generated_files.append(coverted_file_path)
+                    continue
+
+                logging.info('Coverting to wav -> ogg.')
+                response = subprocess.run(['ffmpeg', '-i', file_path, '-acodec', 'libvorbis', coverted_file_path])
+                if response.returncode == 0:
+                    generated_files.append(coverted_file_path)
+
+        audio_dir = 'music'
+        if os.path.isdir(audio_dir):
+            logging.info('Writing audio files to tar file.')
+
+            with tarfile.open(self.dest_tar_audio_path, 'w:tar') as tar_file:
+                for file_path in generated_files:
+                    tar_file.add(file_path)
 
     def get_metadata(self, file_path: str) -> dict:
         data = {
@@ -91,7 +150,7 @@ class Main:
             'album': '',
             'genre': '',
             'length': 0,
-            'audioPath': os.path.join(*list(Path(file_path).parts[4:])),
+            'audioPath': self.format_upload_path(file_path),
         }
 
         try:
@@ -129,7 +188,9 @@ class Main:
 
 if __name__ == "__main__":
     load_dotenv()
-    args_labels = ['SCAN_DIR', 'DEST_DATA_PATH', 'DEST_TAR_PATH']
+    args_labels = ['SCAN_DIR', 'DEST_DATA_PATH', 'DEST_TAR_PATH', 'DEST_TAR_AUDIO_PATH']
     args = [os.getenv(label) for label in args_labels]
 
-    Main(*args).run()
+    main = Main(*args)
+    main.run()
+    main.getAudio()
