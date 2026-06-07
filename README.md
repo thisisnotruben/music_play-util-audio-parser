@@ -1,15 +1,5 @@
 # README
 
-## env vars
-```bash
-touch .env
-cat > .env << EOF
-SCAN_DIR={PATH-TO-MUSICD-DIR}
-DEST_TAR_PATH=./data.tar
-DEST_DATA_PATH={PATH-TO-STORE-JSON-FILE}.json
-EOF
-```
-
 ## Run
 ```bash
 python3 -m venv .venv
