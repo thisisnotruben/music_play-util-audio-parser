@@ -134,6 +134,8 @@ class Main:
                 response = subprocess.run(['ffmpeg', '-i', file_path, '-acodec', 'libvorbis', coverted_file_path])
                 if response.returncode == 0:
                     generated_files.append(coverted_file_path)
+                else:
+                    logging.warning('Trouble converting: [%s].' % file_path)
 
         audio_dir = 'music'
         if os.path.isdir(audio_dir):
@@ -192,5 +194,5 @@ if __name__ == "__main__":
     args = [os.getenv(label) for label in args_labels]
 
     main = Main(*args)
-    main.run()
+    # main.run()
     main.getAudio()
