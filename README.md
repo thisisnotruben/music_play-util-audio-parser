@@ -5,7 +5,7 @@
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python main.py
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python main.py
 ```
 
 ## Personal notes

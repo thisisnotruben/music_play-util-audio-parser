@@ -26,10 +26,11 @@ class Main:
         self.dest_data_path = dest_data_path
         self.dest_tar_path = dest_tar_path
         self.dest_tar_audio_path = dest_tar_audio_path
+        self.audio_dir = 'music'
 
     def format_upload_path(self, s: str) -> str:
         return os.path.join(*list(Path(s).parts[4:])).replace(' ', '-')
-    
+
     def run(self):
 
         data = {'data': {}}
@@ -99,7 +100,7 @@ class Main:
         data: dict = {}
         with open(self.dest_data_path) as f:
             data = json.load(f)
-    
+
         logging.info("Generating audio.")
         model = ChatterboxTTS.from_pretrained(device='cuda')
 
@@ -120,7 +121,7 @@ class Main:
                     ta.save(file_path, wav, model.sr)
 
         generated_files = []
-        for (dirpath, _, filenames) in os.walk(self.scan_dir):
+        for (dirpath, _, filenames) in os.walk(self.audio_dir):
             for file_name in filenames:
 
                 file_path = os.path.join(dirpath, file_name)
@@ -130,18 +131,17 @@ class Main:
                     generated_files.append(coverted_file_path)
                     continue
 
-                logging.info('Coverting to wav -> ogg.')
+                logging.info('Coverting to wav -> ogg [%s].' % file_path)
                 response = subprocess.run(['ffmpeg', '-i', file_path, '-acodec', 'libvorbis', coverted_file_path])
                 if response.returncode == 0:
                     generated_files.append(coverted_file_path)
                 else:
                     logging.warning('Trouble converting: [%s].' % file_path)
 
-        audio_dir = 'music'
-        if os.path.isdir(audio_dir):
+        if os.path.isdir(self.audio_dir):
             logging.info('Writing audio files to tar file.')
 
-            with tarfile.open(self.dest_tar_audio_path, 'w:tar') as tar_file:
+            with tarfile.open(self.dest_tar_audio_path, 'w:gz') as tar_file:
                 for file_path in generated_files:
                     tar_file.add(file_path)
 
@@ -152,7 +152,7 @@ class Main:
             'album': '',
             'genre': '',
             'length': 0,
-            'audioPath': self.format_upload_path(file_path),
+            'audioPath': os.path.splitext(self.format_upload_path(file_path))[0] + '.ogg',
         }
 
         try:
@@ -194,5 +194,5 @@ if __name__ == "__main__":
     args = [os.getenv(label) for label in args_labels]
 
     main = Main(*args)
-    # main.run()
+    main.run()
     main.getAudio()
