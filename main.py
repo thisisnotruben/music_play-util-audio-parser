@@ -125,14 +125,12 @@ class Main:
             for file_name in filenames:
 
                 file_path = os.path.join(dirpath, file_name)
+                if file_path.endswith('.ogg'):
+                    continue
                 coverted_file_path = os.path.splitext(file_path)[0] + '.ogg'
 
-                if os.path.isfile(coverted_file_path):
-                    generated_files.append(coverted_file_path)
-                    continue
-
                 logging.info('Coverting to wav -> ogg [%s].' % file_path)
-                response = subprocess.run(['ffmpeg', '-i', file_path, '-acodec', 'libvorbis', coverted_file_path])
+                response = subprocess.run(['ffmpeg', '-i', file_path, '-acodec', 'libvorbis', '-b:a', '16K', coverted_file_path, '-y'])
                 if response.returncode == 0:
                     generated_files.append(coverted_file_path)
                 else:
