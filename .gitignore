@@ -1,5 +1,6 @@
 .venv
 music
 *.tar
+*.tar.gz
 .env
 .log
